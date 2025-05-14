@@ -5,6 +5,7 @@
 package impl
 
 import (
+	"fmt"
 	"math/bits"
 
 	"google.golang.org/protobuf/encoding/protowire"
@@ -218,7 +219,7 @@ func (mi *MessageInfo) unmarshalPointerEager(b []byte, p pointer, groupTag proto
 		}
 		if err != nil {
 			if err != errUnknown {
-				return out, err
+				return out, wrapUnmarshalErrorForField(err, mi.Desc, f)
 			}
 			n = protowire.ConsumeFieldValue(num, wtyp, b)
 			if n < 0 {
@@ -243,6 +244,16 @@ func (mi *MessageInfo) unmarshalPointerEager(b []byte, p pointer, groupTag proto
 	}
 	out.n = start - len(b)
 	return out, nil
+}
+
+func wrapUnmarshalErrorForField(err error, desc protoreflect.MessageDescriptor, f *coderFieldInfo) error {
+	if err == nil {
+		return nil
+	}
+	if f != nil && desc.Fields() != nil && int(f.num) < desc.Fields().Len() {
+		return fmt.Errorf("failed to unmarshal message %q: %w", desc.Fields().Get(int(f.num)).FullName(), err)
+	}
+	return fmt.Errorf("failed to unmarshal field %q: %w", desc.FullName(), err)
 }
 
 func (mi *MessageInfo) unmarshalExtension(b []byte, num protowire.Number, wtyp protowire.Type, exts map[int32]ExtensionField, opts unmarshalOptions) (out unmarshalOutput, err error) {
